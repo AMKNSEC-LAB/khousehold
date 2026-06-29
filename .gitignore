@@ -1,0 +1,10 @@
+*.pptx
+*.pdf
+*.png
+!khousehold_logo.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+.DS_Store
+Thumbs.db

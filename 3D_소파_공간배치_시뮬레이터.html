@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D 소파 공간배치 시뮬레이터</title>
+  <style>
+    :root {
+      --bg: #eef1f5;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d8dee8;
+      --accent: #315efb;
+      --accent-soft: #edf1ff;
+      --good: #168a55;
+      --warn: #b7791f;
+      --bad: #c24135;
+      --shadow: 0 18px 45px rgba(28, 40, 66, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, #f8fafc 0, var(--bg) 46%, #e2e8f0 100%);
+      color: var(--ink);
+      font-family: Pretendard, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      width: 100vw;
+      height: 100vh;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .viewer-card, .side-panel {
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      overflow: hidden;
+    }
+
+    .viewer-card {
+      position: relative;
+      min-width: 0;
+    }
+
+    #viewer {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #viewer.dragging { cursor: grabbing; }
+
+    .viewer-badge {
+      position: absolute;
+      left: 22px;
+      top: 20px;
+      max-width: min(520px, calc(100% - 44px));
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(216, 222, 232, 0.9);
+      box-shadow: 0 10px 24px rgba(20, 29, 48, 0.1);
+      pointer-events: none;
+    }
+
+    .viewer-badge h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: -0.03em;
+    }
+
+    .viewer-badge p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .viewer-logo {
+      position: absolute;
+      left: 22px;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: min(360px, calc(100% - 44px));
+      padding: 9px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(216, 222, 232, 0.85);
+      box-shadow: 0 10px 24px rgba(20, 29, 48, 0.1);
+      pointer-events: none;
+    }
+
+    .brand-logo {
+      flex: 0 0 auto;
+      width: 132px;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      background: #111;
+      object-fit: contain;
+    }
+
+    .viewer-logo > span {
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    .viewer-message {
+      position: absolute;
+      right: 22px;
+      bottom: 20px;
+      max-width: min(420px, calc(100% - 44px));
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 244, 230, 0.94);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #7c3f00;
+      box-shadow: 0 10px 24px rgba(20, 29, 48, 0.1);
+      font-size: 12px;
+      line-height: 1.45;
+      display: none;
+      z-index: 3;
+    }
+
+    .viewer-message.show { display: block; }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    .panel-header { margin-bottom: 18px; }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(135deg, #f8fbff, #eef6ff);
+    }
+
+    .brand-row strong {
+      display: block;
+      font-size: 14px;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-row span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .panel-header h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      letter-spacing: -0.04em;
+    }
+
+    .panel-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .section {
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section:first-of-type { border-top: 0; padding-top: 0; }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+
+    .section-title h3 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+
+    input {
+      width: 100%;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 0 12px;
+      color: var(--ink);
+      background: #f9fafb;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: rgba(49, 94, 251, 0.65);
+      box-shadow: 0 0 0 4px rgba(49, 94, 251, 0.1);
+      background: #fff;
+    }
+
+    button {
+      min-height: 42px;
+      border: 0;
+      border-radius: 14px;
+      padding: 0 13px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      white-space: nowrap;
+    }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(23, 32, 51, 0.16); }
+    button:active { transform: translateY(0); box-shadow: none; }
+
+    .primary { width: 100%; margin-top: 10px; background: var(--accent); }
+    .ghost { background: #f3f5f8; color: var(--ink); border: 1px solid var(--line); }
+    .danger { background: #fff1f0; color: var(--bad); border: 1px solid #ffd7d2; }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .preset-card {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      min-height: 74px;
+      padding: 11px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+    }
+
+    .preset-card:hover { transform: translateY(-1px); border-color: rgba(49, 94, 251, 0.4); }
+    .preset-card.active { border-color: var(--accent); background: var(--accent-soft); }
+
+    .swatch {
+      width: 36px;
+      height: 36px;
+      border-radius: 13px;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+    }
+
+    .preset-name {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.25;
+      word-break: keep-all;
+    }
+
+    .preset-meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .button-row + .button-row { margin-top: 10px; }
+
+    .metrics {
+      display: grid;
+      gap: 10px;
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 42px;
+      padding: 10px 12px;
+      border-radius: 15px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+
+    .metric span:first-child {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .metric strong {
+      text-align: right;
+      font-size: 13px;
+      word-break: keep-all;
+    }
+
+    .status-good { color: var(--good); }
+    .status-warn { color: var(--warn); }
+    .status-bad { color: var(--bad); }
+
+    .help {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .app {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 100vh;
+      }
+      .viewer-card { height: 62vh; min-height: 420px; }
+      .side-panel { max-height: none; }
+    }
+
+    @media (max-width: 560px) {
+      .app { padding: 10px; gap: 10px; }
+      .viewer-card, .side-panel { border-radius: 20px; }
+      .viewer-badge { left: 12px; top: 12px; padding: 11px 12px; }
+      .viewer-logo { left: 12px; bottom: 12px; padding: 8px 10px; }
+      .viewer-message { right: 12px; bottom: 68px; }
+      .viewer-badge h1 { font-size: 15px; }
+      .viewer-badge p { font-size: 12px; }
+      .viewer-logo span { font-size: 11px; }
+      .brand-logo { width: 116px; }
+      .side-panel { padding: 14px; }
+      .preset-grid, .field-grid, .button-row { grid-template-columns: 1fr; }
+      .viewer-card { height: 56vh; min-height: 340px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="viewer-card">
+      <div id="viewer"></div>
+      <div class="viewer-badge">
+        <h1>3D 소파 공간배치 시뮬레이터</h1>
+        <p>소파를 직접 드래그해 옮기고, 빈 공간을 드래그해 카메라를 회전하세요.</p>
+      </div>
+      <div class="viewer-logo">
+        <img class="brand-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAH0AAAAsCAYAAABIUrd3AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAA4GSURBVHhe7dsDkCZLswbgY9u2bdu2bdtGnHPi2LZt27Zt22bdePL+OdGne76Z3X9nN27s/SoiY2aqu6qr6028mdUzwAADDFDa8v9OGh39TAYddNAy3HDDlSGGGKJxrS19VRod/USGHnrosthii5UDDjigbLDBBmWMMcZo3NOWviaNjr4u4403Xtl+++3L008/XX777bfy6aeflhNOOKHMNttsYf31+9vS49Lo6GvCmldaaaVy+eWXly+++KJU26+//loeeOCBUIZJJ520DX7flUZHj8swwwxT5p577nLEEUeUF154ofz5558B9DvvvFPuvvvu8txzz4XFa6z+0ksvLausskoZa6yxykADDdSYry19LI2OHpNBBhmkTDHFFGW77bYLK/7ll186rPree+8tW221VZl55pnLcsstVy644ILy8ccfd1j+q6++Wo488sgyzzzzRPyvz92WPpJGR48IVr788suXyy67rHz33XcdYL7++uvl8MMPLzPMMEMoRd4/7rjjli233DKU448//oh7//rrr/Lwww+XbbbZpowzzjiNZ7Tlv5ZGRx/JUEMNVeaYY44A9qWXXip///13ACiGX3zxxWXFFVcso4wySmMcGXLIIcvss89eDj300PLKK68E6BqXf8kllwQfGH300Rvj2tLb0uj4r4TVTjbZZGGVXPf3338fgPl5zz33RP/kk09eBhtssMbYqojhgAUwJfnggw9iHjwAH8ALKEbb5feRNDp6W0YaaaSIy0D65JNPOlw5axWXgcSK6+O6koEHHjiUBB948MEHO4jeDz/8UO67776y9dZbB8t3X31sW7qVRkcvC6udaaaZymGHHVbefffdDrBZ99VXXx0xffjhh2+M6x3xjBlnnLEcc8wx5a233up4BvDxhWWWWaYMO+ywjXFt6VIaHd0KFzzRRBMF+5ZyYePaTz/9VO6///7ItSeccMIeTbcoD5cvncsc/59//gnegAMo7EgNBxxwwMbYtjSk0dFSBh988GDZyJgU68MPP4zNR7hefPHFctRRR5V55503yFx9bE+Igo0UcIcddgie8O2338bzpYJ33nlnKOEE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" alt="K HOUSEHOLD 로고" />
+        <span>케이하우스홀드 제품 배치 시뮬레이터</span>
+      </div>
+      <div id="viewerMessage" class="viewer-message"></div>
+    </section>
+
+    <aside class="side-panel">
+      <div class="panel-header">
+        <div class="brand-row">
+          <img class="brand-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAH0AAAAsCAYAAABIUrd3AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAA4GSURBVHhe7dsDkCZLswbgY9u2bdu2bdtGnHPi2LZt27Zt22bdePL+OdGne76Z3X9nN27s/SoiY2aqu6qr6028mdUzwAADDFDa8v9OGh39TAYddNAy3HDDlSGGGKJxrS19VRod/USGHnrosthii5UDDjigbLDBBmWMMcZo3NOWviaNjr4u4403Xtl+++3L008/XX777bfy6aeflhNOOKHMNttsYf31+9vS49Lo6GvCmldaaaVy+eWXly+++KJU26+//loeeOCBUIZJJ520DX7flUZHj8swwwxT5p577nLEEUeUF154ofz5558B9DvvvFPuvvvu8txzz4XFa6z+0ksvLausskoZa6yxykADDdSYry19LI2OHpNBBhmkTDHFFGW77bYLK/7ll186rPree+8tW221VZl55pnLcsstVy644ILy8ccfd1j+q6++Wo488sgyzzzzRPyvz92WPpJGR48IVr788suXyy67rHz33XcdYL7++uvl8MMPLzPMMEMoRd4/7rjjli233DKU448//oh7//rrr/Lwww+XbbbZpowzzjiNZ7Tlv5ZGRx/JUEMNVeaYY44A9qWXXip///13ACiGX3zxxWXFFVcso4wySmMcGXLIIcvss89eDj300PLKK68E6BqXf8kllwQfGH300Rvj2tLb0uj4r4TVTjbZZGGVXPf3338fgPl5zz33RP/kk09eBhtssMbYqojhgAUwJfnggw9iHjwAH8ALKEbb5feRNDp6W0YaaaSIy0D65JNPOlw5axWXgcSK6+O6koEHHjiUBB948MEHO4jeDz/8UO67776y9dZbB8t3X31sW7qVRkcvC6udaaaZymGHHVbefffdDrBZ99VXXx0xffjhh2+M6x3xjBlnnLEcc8wx5a233up4BvDxhWWWWaYMO+ywjXFt6VIaHd0KFzzRRBMF+5ZyYePaTz/9VO6///7ItSeccMIeTbcoD5cvncsc/59//gnegAMo7EgNBxxwwMbYtjSk0dFSBh988GDZyJgU68MPP4zNR7hefPHFctRRR5V55503yFx9bE+Igo0UcIcddgie8O2338bzpYJ33nlnKOEE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" alt="K HOUSEHOLD 로고" />
+          <div>
+            <strong>케이하우스홀드</strong>
+            <span>소파 실측 기반 3D 공간배치</span>
+          </div>
+        </div>
+        <h2>공간 설정</h2>
+        <p>거실 크기와 소파 프리셋을 바꾸며 실제 배치감을 확인합니다.</p>
+      </div>
+
+      <section class="section">
+        <div class="section-title"><h3>거실 크기</h3></div>
+        <div class="field-grid">
+          <div>
+            <label for="roomWidth">가로 m</label>
+            <input id="roomWidth" type="number" min="3" max="12" step="0.1" value="5.2" />
+          </div>
+          <div>
+            <label for="roomDepth">세로 m</label>
+            <input id="roomDepth" type="number" min="3" max="10" step="0.1" value="4.2" />
+          </div>
+        </div>
+        <button class="primary" id="rebuildRoom">공간 다시 생성</button>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h3>소파 프리셋</h3></div>
+        <div class="preset-grid" id="presetGrid"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h3>소파 컨트롤</h3></div>
+        <div class="button-row">
+          <button id="rotateSofa">90도 회전</button>
+          <button id="addSofa" class="ghost">소파 추가</button>
+        </div>
+        <div class="button-row">
+          <button id="centerSofa" class="ghost">중앙 배치</button>
+          <button id="deleteSofa" class="danger">선택 삭제</button>
+        </div>
+        <p class="help">프리셋 카드를 누르면 선택된 소파가 즉시 해당 스타일로 변경됩니다.</p>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h3>배치 정보</h3></div>
+        <div class="metrics">
+          <div class="metric"><span>공간 점유율</span><strong id="occupancy">0%</strong></div>
+          <div class="metric"><span>통로 여유 상태</span><strong id="walkway" class="status-good">충분</strong></div>
+          <div class="metric"><span>벽 최소 간격</span><strong id="clearance">0 cm</strong></div>
+          <div class="metric"><span>선택 프리셋</span><strong id="selectedPreset">-</strong></div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+    const viewer = document.getElementById('viewer');
+    const roomWidthInput = document.getElementById('roomWidth');
+    const roomDepthInput = document.getElementById('roomDepth');
+    const presetGrid = document.getElementById('presetGrid');
+    const occupancyEl = document.getElementById('occupancy');
+    const walkwayEl = document.getElementById('walkway');
+    const clearanceEl = document.getElementById('clearance');
+    const selectedPresetEl = document.getElementById('selectedPreset');
+    const viewerMessage = document.getElementById('viewerMessage');
+
+    const presets = [
+      { name: '케이하우스홀드 오르드 4인 라이트', short: 'ORD4 LIGHT', color: 0xd8c8b8, accent: 0x9a8a78, w: 2.6, d: 1.05, seats: 4, type: 'glb', modelUrl: 'ORD4-LIGHT.glb' },
+      { name: '케이하우스홀드 켄지 4인', short: 'KENZY4', color: 0xd8c8b8, accent: 0x9a8a78, w: 2.6, d: 1.05, seats: 4, type: 'glb', modelUrl: 'KENZY4.glb' },
+      { name: '케이하우스홀드 카든 3인', short: 'CARDEN3', color: 0x17191d, accent: 0x3b3f46, w: 2.3, d: 1.02, seats: 3, type: 'glb', modelUrl: 'CARDEN3.glb' },
+      { name: '케이하우스홀드 무에나 3인용 구스 패브릭 소파', short: '무에나 3인 아이보리', color: 0xeee4d5, accent: 0xcfc0ac, w: 2.06, d: 1.03, seats: 3, type: 'muena' },
+      { name: 'Modular Sofa FREE', short: '모듈러 4인', color: 0x565b63, accent: 0xb8bec8, w: 2.8, d: 1.55, seats: 3, type: 'modular' },
+      { name: 'Furniture FREE Pack', short: '클래식 3인', color: 0xb7956b, accent: 0xf1d4a9, w: 2.35, d: 0.98, seats: 3, type: 'classic' },
+      { name: 'Low Poly Simple Furniture', short: '모던 체어', color: 0x2a9d8f, accent: 0xd9f5ee, w: 1.02, d: 0.9, seats: 1, type: 'modern' },
+      { name: 'Cute Furniture FREE', short: '러브시트', color: 0x779bd3, accent: 0xf8d7e6, w: 1.72, d: 0.92, seats: 2, type: 'cute' },
+      { name: 'Furniture Mega Pack - Free', short: '라운지형', color: 0xf0e4cf, accent: 0x9b6d45, w: 2.55, d: 1.42, seats: 2, type: 'lounge' },
+      { name: 'Meshtint Free Super Furniture', short: '코너형', color: 0x303846, accent: 0xd0d5dd, w: 2.45, d: 2.05, seats: 4, type: 'corner' }
+    ];
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdfe6ee);
+    scene.fog = new THREE.Fog(0xdfe6ee, 8, 18);
+
+    const camera = new THREE.PerspectiveCamera(47, 1, 0.1, 100);
+    camera.position.set(4.6, 3.2, 5.3);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    viewer.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.8, 0);
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minDistance = 3.2;
+    controls.maxDistance = 10;
+
+    const roomGroup = new THREE.Group();
+    const sofaGroup = new THREE.Group();
+    scene.add(roomGroup, sofaGroup);
+
+    let roomWidth = 5.2;
+    let roomDepth = 4.2;
+    let selectedPresetIndex = 3;
+    let selectedSofa = null;
+    let sofaId = 0;
+    let isDragging = false;
+    let dragOffset = new THREE.Vector3();
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const dragPoint = new THREE.Vector3();
+    const gltfLoader = new GLTFLoader();
+    const modelCache = new Map();
+
+    const common = {
+      wall: new THREE.MeshStandardMaterial({ color: 0xf4efe7, roughness: 0.82 }),
+      trim: new THREE.MeshStandardMaterial({ color: 0xd9cec1, roughness: 0.75 }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0xb9d7ea, roughness: 0.12, transmission: 0.25, transparent: true, opacity: 0.58 }),
+      black: new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.55 }),
+      wood: new THREE.MeshStandardMaterial({ color: 0x8a5b35, roughness: 0.72 }),
+      metal: new THREE.MeshStandardMaterial({ color: 0x20242b, roughness: 0.35, metalness: 0.55 })
+    };
+
+    function makeMat(color, roughness = 0.82, metalness = 0) {
+      return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+    }
+
+    function makeFabricMat(baseColor, lineColor = '#d7cbb8') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = `#${baseColor.toString(16).padStart(6, '0')}`;
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = lineColor;
+      for (let i = 0; i < 256; i += 6) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + Math.sin(i) * 1.4, 256);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(256, i + Math.cos(i) * 1.2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(2.4, 2.4);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, roughness: 0.94 });
+    }
+
+    function addBox(parent, size, pos, mat, cast = true, receive = true, rot = null) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), mat);
+      mesh.position.set(pos[0], pos[1], pos[2]);
+      if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = cast;
+      mesh.receiveShadow = receive;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function addRoundedBox(parent, size, pos, mat, radius = 0.045, segments = 4, rot = null) {
+      const geometry = new RoundedBoxGeometry(size[0], size[1], size[2], segments, radius);
+      const mesh = new THREE.Mesh(geometry, mat);
+      mesh.position.set(pos[0], pos[1], pos[2]);
+      if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function addCylinder(parent, radiusTop, radiusBottom, height, pos, mat, segments = 24, rot = null) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, segments), mat);
+      mesh.position.set(pos[0], pos[1], pos[2]);
+      if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function disposeObject(object) {
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.geometry?.dispose();
+        const disposeMaterial = (mat) => {
+          Object.values(mat).forEach((value) => {
+            if (value && value.isTexture) value.dispose();
+          });
+          mat.dispose();
+        };
+        if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+        else if (child.material) disposeMaterial(child.material);
+      });
+    }
+
+    function clearGroup(group) {
+      [...group.children].forEach((child) => {
+        group.remove(child);
+        disposeObject(child);
+      });
+    }
+
+    function createWoodTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#a46d3f';
+      ctx.fillRect(0, 0, 512, 512);
+      for (let y = 0; y < 512; y += 38) {
+        ctx.fillStyle = y % 76 === 0 ? '#b77a46' : '#8f5b34';
+        ctx.fillRect(0, y, 512, 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(0, y + 8, 512, 1);
+      }
+      for (let i = 0; i < 90; i++) {
+        ctx.strokeStyle = `rgba(70, 36, 16, ${0.05 + Math.random() * 0.08})`;
+        ctx.beginPath();
+        const y = Math.random() * 512;
+        ctx.moveTo(0, y);
+        for (let x = 0; x < 512; x += 32) ctx.lineTo(x, y + Math.sin(x * 0.025 + i) * 5);
+        ctx.stroke();
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(2.5, 2.5);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    }
+
+    function buildRoom() {
+      clearGroup(roomGroup);
+      const floorMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.68 });
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      roomGroup.add(floor);
+
+      const wallH = 2.8;
+      addBox(roomGroup, [roomWidth, wallH, 0.08], [0, wallH / 2, -roomDepth / 2], common.wall, false, true);
+      addBox(roomGroup, [0.08, wallH, roomDepth], [-roomWidth / 2, wallH / 2, 0], common.wall, false, true);
+      addBox(roomGroup, [0.08, wallH, roomDepth], [roomWidth / 2, wallH / 2, 0], common.wall, false, true);
+      addBox(roomGroup, [roomWidth, 0.08, 0.12], [0, 0.04, -roomDepth / 2 + 0.02], common.trim, false, true);
+      addBox(roomGroup, [0.12, 0.08, roomDepth], [-roomWidth / 2 + 0.02, 0.04, 0], common.trim, false, true);
+      addBox(roomGroup, [0.12, 0.08, roomDepth], [roomWidth / 2 - 0.02, 0.04, 0], common.trim, false, true);
+
+      buildWindow();
+      buildDecor();
+    }
+
+    function buildWindow() {
+      const z = -roomDepth / 2 + 0.055;
+      const frameMat = makeMat(0xf5f0e8, 0.62);
+      addBox(roomGroup, [1.55, 0.95, 0.035], [-roomWidth * 0.22, 1.72, z], common.glass, false, true);
+      addBox(roomGroup, [1.7, 0.07, 0.06], [-roomWidth * 0.22, 2.22, z + 0.01], frameMat, false, true);
+      addBox(roomGroup, [1.7, 0.07, 0.06], [-roomWidth * 0.22, 1.22, z + 0.01], frameMat, false, true);
+      addBox(roomGroup, [0.07, 1.05, 0.06], [-roomWidth * 0.22 - 0.84, 1.72, z + 0.01], frameMat, false, true);
+      addBox(roomGroup, [0.07, 1.05, 0.06], [-roomWidth * 0.22 + 0.84, 1.72, z + 0.01], frameMat, false, true);
+      addBox(roomGroup, [0.055, 0.94, 0.065], [-roomWidth * 0.22, 1.72, z + 0.02], frameMat, false, true);
+      addBox(roomGroup, [1.82, 0.045, 0.045], [-roomWidth * 0.22, 2.28, z + 0.04], common.metal, false, true);
+      addBox(roomGroup, [0.28, 1.25, 0.055], [-roomWidth * 0.22 - 1.03, 1.62, z + 0.05], makeMat(0xc9b79d), false, true);
+      addBox(roomGroup, [0.28, 1.25, 0.055], [-roomWidth * 0.22 + 1.03, 1.62, z + 0.05], makeMat(0xc9b79d), false, true);
+    }
+
+    function buildDecor() {
+      const backZ = -roomDepth / 2 + 0.08;
+      const tvX = roomWidth * 0.25;
+      addBox(roomGroup, [1.15, 0.64, 0.045], [tvX, 1.6, backZ], common.black, false, true);
+      addBox(roomGroup, [1.85, 0.46, 0.42], [tvX, 0.27, -roomDepth / 2 + 0.28], common.wood, true, true);
+      addBox(roomGroup, [1.95, 0.07, 0.48], [tvX, 0.53, -roomDepth / 2 + 0.28], makeMat(0x7a4f31), true, true);
+      [-0.58, 0, 0.58].forEach((offset) => {
+        addBox(roomGroup, [0.5, 0.22, 0.04], [tvX + offset, 0.29, -roomDepth / 2 + 0.50], makeMat(0xe7ded2), true, true);
+        addBox(roomGroup, [0.12, 0.018, 0.025], [tvX + offset, 0.3, -roomDepth / 2 + 0.525], common.metal, true, true);
+      });
+
+      addBox(roomGroup, [1.9, 0.018, 1.25], [0, 0.012, 0.45], makeMat(0xd1a574, 0.9), false, true);
+      addBox(roomGroup, [1.55, 0.021, 0.92], [0, 0.018, 0.45], makeMat(0xf3dcc2, 0.92), false, true);
+
+      addCylinder(roomGroup, 0.16, 0.2, 0.32, [-roomWidth / 2 + 0.45, 0.16, -roomDepth / 2 + 0.55], makeMat(0x8a4f33), 28);
+      addCylinder(roomGroup, 0.035, 0.045, 0.5, [-roomWidth / 2 + 0.45, 0.55, -roomDepth / 2 + 0.55], makeMat(0x3f6f3e, 0.8), 10);
+      const leafMat = makeMat(0x2f7a4f, 0.78);
+      const leafPositions = [
+        [0, 0.82, 0, 0.34, 0.18, 0.24],
+        [-0.13, 0.75, 0.08, 0.3, 0.15, 0.22],
+        [0.14, 0.78, 0.07, 0.31, 0.16, 0.22],
+        [-0.08, 0.9, -0.09, 0.28, 0.14, 0.2],
+        [0.1, 0.88, -0.08, 0.27, 0.14, 0.2]
+      ];
+      leafPositions.forEach(([x, y, z, sx, sy, sz]) => {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 10), leafMat);
+        leaf.position.set(-roomWidth / 2 + 0.45 + x, y, -roomDepth / 2 + 0.55 + z);
+        leaf.scale.set(sx, sy, sz);
+        leaf.castShadow = true;
+        leaf.receiveShadow = true;
+        roomGroup.add(leaf);
+      });
+
+      const lampX = roomWidth / 2 - 0.45;
+      const lampZ = roomDepth / 2 - 0.55;
+      addCylinder(roomGroup, 0.13, 0.13, 0.04, [lampX, 0.02, lampZ], common.metal, 32);
+      addCylinder(roomGroup, 0.018, 0.018, 1.55, [lampX, 0.8, lampZ], common.metal, 16);
+      addCylinder(roomGroup, 0.19, 0.29, 0.34, [lampX, 1.63, lampZ], makeMat(0xf7e9c8, 0.7), 32);
+      const lamp = new THREE.PointLight(0xffdfad, 0.55, 4);
+      lamp.position.set(lampX, 1.55, lampZ);
+      roomGroup.add(lamp);
+
+      addBox(roomGroup, [0.035, 0.86, 0.65], [-roomWidth / 2 + 0.055, 1.55, 0.55], makeMat(0x594333), false, true);
+      addBox(roomGroup, [0.045, 0.68, 0.49], [-roomWidth / 2 + 0.08, 1.55, 0.55], makeMat(0x9eb5c7), false, true);
+      addBox(roomGroup, [0.05, 0.18, 0.46], [-roomWidth / 2 + 0.09, 1.69, 0.55], makeMat(0xf2d388), false, true);
+    }
+
+    function createLegs(parent, w, d, mat) {
+      const points = [[-w / 2 + 0.16, -d / 2 + 0.16], [w / 2 - 0.16, -d / 2 + 0.16], [-w / 2 + 0.16, d / 2 - 0.16], [w / 2 - 0.16, d / 2 - 0.16]];
+      points.forEach(([x, z]) => addCylinder(parent, 0.035, 0.045, 0.2, [x, 0.1, z], mat, 12));
+    }
+
+    function createLegsAt(parent, points, mat) {
+      points.forEach(([x, z]) => addCylinder(parent, 0.035, 0.045, 0.2, [x, 0.1, z], mat, 12));
+    }
+
+    function createTaperedLegsAt(parent, points, mat) {
+      points.forEach(([x, z]) => addCylinder(parent, 0.026, 0.012, 0.22, [x, 0.11, z], mat, 10, [0.08, 0, 0.04]));
+    }
+
+    function cloneModelScene(source) {
+      const clone = source.clone(true);
+      const importedLights = [];
+      clone.traverse((child) => {
+        if (child.isLight) {
+          importedLights.push(child);
+          return;
+        }
+        if (!child.isMesh) return;
+        child.geometry = child.geometry.clone();
+        child.material = Array.isArray(child.material) ? child.material.map((mat) => mat.clone()) : child.material.clone();
+        child.castShadow = true;
+        child.receiveShadow = true;
+      });
+      importedLights.forEach((light) => light.parent?.remove(light));
+      return clone;
+    }
+
+    function normalizeImportedMaterials(model, preset) {
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((mat) => {
+          if (!mat) return;
+          if (mat.emissive) mat.emissive.set(0x000000);
+          mat.emissiveIntensity = 0;
+          if (preset.modelUrl === 'ORD4-LIGHT.glb') {
+            mat.roughness = THREE.MathUtils.clamp(mat.roughness ?? 0.58, 0.46, 0.68);
+            mat.metalness = Math.min(mat.metalness ?? 0.02, 0.04);
+            if (mat.color) mat.color.multiplyScalar(0.9);
+          } else {
+            mat.roughness = Math.max(mat.roughness ?? 0.65, 0.72);
+            mat.metalness = Math.min(mat.metalness ?? 0, 0.08);
+          }
+          mat.needsUpdate = true;
+        });
+      });
+    }
+
+    function getUnitScale(size) {
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 500) return 0.001;
+      if (maxDim > 20) return 0.01;
+      return 1;
+    }
+
+    function fitModelToSofaGroup(group, model, preset) {
+      let box = new THREE.Box3().setFromObject(model);
+      const rawSize = box.getSize(new THREE.Vector3());
+      const unitScale = getUnitScale(rawSize);
+      model.scale.multiplyScalar(unitScale);
+      model.updateMatrixWorld(true);
+
+      box = new THREE.Box3().setFromObject(model);
+      let size = box.getSize(new THREE.Vector3());
+      if (size.x < 0.5 || size.z < 0.3 || size.x > 6 || size.z > 5) {
+        const fitScale = Math.min(preset.w / Math.max(size.x, 0.01), preset.d / Math.max(size.z, 0.01));
+        model.scale.multiplyScalar(fitScale);
+        model.updateMatrixWorld(true);
+        box = new THREE.Box3().setFromObject(model);
+        size = box.getSize(new THREE.Vector3());
+      }
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= box.min.y;
+
+      group.userData.w = size.x;
+      group.userData.d = size.z;
+      group.userData.area = Math.max(0.2, size.x * size.z);
+    }
+
+    function setModelAsSofa(group, model, preset) {
+      clearGroup(group);
+      normalizeImportedMaterials(model, preset);
+      fitModelToSofaGroup(group, model, preset);
+      group.add(model);
+      group.traverse((child) => {
+        if (child.isMesh) child.userData.sofaRoot = group;
+      });
+      clampSofaToRoom(group);
+      hideViewerMessage();
+      updateMetrics();
+    }
+
+    function showViewerMessage(message) {
+      viewerMessage.textContent = message;
+      viewerMessage.classList.add('show');
+    }
+
+    function hideViewerMessage() {
+      viewerMessage.textContent = '';
+      viewerMessage.classList.remove('show');
+    }
+
+    function loadGltfSofa(group, preset) {
+      const placeholder = addRoundedBox(group, [preset.w, 0.45, preset.d], [0, 0.225, 0], makeMat(0xd8c8b8, 0.85), 0.06, 4);
+      placeholder.userData.sofaRoot = group;
+      showViewerMessage(`${preset.short} 모델을 불러오는 중입니다.`);
+
+      const cached = modelCache.get(preset.modelUrl);
+      if (cached) {
+        setModelAsSofa(group, cloneModelScene(cached), preset);
+        return;
+      }
+
+      gltfLoader.load(
+        preset.modelUrl,
+        (gltf) => {
+          modelCache.set(preset.modelUrl, gltf.scene);
+          if (group.parent) setModelAsSofa(group, cloneModelScene(gltf.scene), preset);
+        },
+        undefined,
+        (error) => {
+          placeholder.material.color.set(0xb94a48);
+          const protocolHint = location.protocol === 'file:' ? ' HTML을 더블클릭(file://)으로 열면 GLB 로딩이 막힐 수 있습니다. 로컬 서버로 실행하세요.' : '';
+          showViewerMessage(`${preset.modelUrl} 파일을 불러오지 못했습니다.${protocolHint}`);
+          console.error('GLB load failed:', preset.modelUrl, error);
+        }
+      );
+    }
+
+    function addPillow(parent, x, z, color, rotY = 0) {
+      const pillow = addBox(parent, [0.34, 0.28, 0.1], [x, 0.72, z], makeMat(color, 0.92), true, true, [-0.12, rotY, 0]);
+      pillow.userData.decorative = true;
+    }
+
+    function makeSofa(presetIndex) {
+      const preset = presets[presetIndex];
+      const group = new THREE.Group();
+      group.userData = { id: ++sofaId, presetIndex, isSofa: true, w: preset.w, d: preset.d, area: preset.w * preset.d * (preset.type === 'corner' ? 0.72 : preset.type === 'modular' ? 0.76 : 1) };
+      const fabric = preset.type === 'muena' ? makeFabricMat(preset.color) : makeMat(preset.color, 0.88);
+      const accent = makeMat(preset.accent, 0.9);
+      const dark = makeMat(0x252932, 0.65);
+      const wood = makeMat(0x6a4128, 0.72);
+
+      if (preset.type === 'glb') {
+        loadGltfSofa(group, preset);
+      } else if (preset.type === 'muena') {
+        const side = makeFabricMat(0xe6dac8, '#cfc2ae');
+        const shadowSeam = makeMat(0x8d8170, 0.9);
+
+        addRoundedBox(group, [2.06, 0.28, 0.98], [0, 0.14, 0], side, 0.055, 5);
+        addRoundedBox(group, [1.66, 0.08, 0.13], [0, 0.35, 0.45], side, 0.035, 4);
+        addRoundedBox(group, [0.2, 0.65, 1.03], [-0.93, 0.325, 0], side, 0.065, 6);
+        addRoundedBox(group, [0.2, 0.65, 1.03], [0.93, 0.325, 0], side, 0.065, 6);
+
+        addRoundedBox(group, [0.81, 0.15, 0.6], [-0.415, 0.425, 0.18], fabric, 0.06, 6);
+        addRoundedBox(group, [0.81, 0.15, 0.6], [0.415, 0.425, 0.18], fabric, 0.06, 6);
+        addBox(group, [0.02, 0.08, 0.58], [0, 0.46, 0.18], shadowSeam);
+
+        addRoundedBox(group, [0.8, 0.43, 0.14], [-0.415, 0.645, -0.36], fabric, 0.075, 7, [-0.08, 0, 0]);
+        addRoundedBox(group, [0.8, 0.43, 0.14], [0.415, 0.645, -0.36], fabric, 0.075, 7, [-0.08, 0, 0]);
+        addBox(group, [0.02, 0.38, 0.13], [0, 0.66, -0.36], shadowSeam, true, true, [-0.08, 0, 0]);
+        addRoundedBox(group, [1.66, 0.54, 0.12], [0, 0.58, -0.47], side, 0.05, 5, [-0.04, 0, 0]);
+
+        addBox(group, [0.022, 0.5, 0.9], [-0.815, 0.34, 0], shadowSeam);
+        addBox(group, [0.022, 0.5, 0.9], [0.815, 0.34, 0], shadowSeam);
+      } else if (preset.type === 'modular') {
+        addBox(group, [2.35, 0.18, 0.78], [0.18, 0.28, 0.12], fabric);
+        addBox(group, [0.84, 0.18, 1.32], [-0.72, 0.28, 0.34], fabric);
+        for (let i = 0; i < 3; i++) addBox(group, [0.67, 0.16, 0.66], [-0.56 + i * 0.72, 0.46, 0.05], fabric);
+        addBox(group, [0.67, 0.16, 0.72], [-0.72, 0.46, 0.86], fabric);
+        addBox(group, [2.45, 0.54, 0.18], [0.2, 0.72, -0.38], fabric, true, true, [-0.08, 0, 0]);
+        addBox(group, [0.18, 0.54, 1.38], [-1.17, 0.72, 0.28], fabric);
+        addBox(group, [0.16, 0.44, 0.86], [1.5, 0.62, 0.12], fabric);
+        addPillow(group, 0.55, -0.25, preset.accent, 0.1);
+        addPillow(group, -0.85, -0.2, 0x8f98a7, -0.1);
+        createLegsAt(group, [[-1.0, -0.22], [-0.2, -0.22], [0.72, -0.22], [1.34, -0.22], [-1.0, 0.08], [1.34, 0.42], [-1.0, 0.9], [-0.44, 0.9]], dark);
+      } else if (preset.type === 'classic') {
+        addBox(group, [2.2, 0.22, 0.72], [0, 0.31, 0.04], fabric);
+        for (let i = 0; i < 3; i++) addBox(group, [0.65, 0.18, 0.63], [-0.7 + i * 0.7, 0.52, 0.02], fabric);
+        addBox(group, [2.16, 0.58, 0.17], [0, 0.78, -0.38], fabric, true, true, [-0.12, 0, 0]);
+        addCylinder(group, 0.18, 0.18, 0.82, [-1.2, 0.6, 0.03], fabric, 28, [Math.PI / 2, 0, 0]);
+        addCylinder(group, 0.18, 0.18, 0.82, [1.2, 0.6, 0.03], fabric, 28, [Math.PI / 2, 0, 0]);
+        for (let x of [-0.35, 0.35]) addBox(group, [0.035, 0.05, 0.62], [x, 0.63, 0.02], dark);
+        addPillow(group, -0.55, -0.25, preset.accent, -0.05);
+        addPillow(group, 0.55, -0.25, 0x835f47, 0.05);
+        createLegs(group, 2.0, 0.82, wood);
+      } else if (preset.type === 'modern') {
+        addBox(group, [0.82, 0.17, 0.7], [0, 0.35, 0.02], fabric);
+        addBox(group, [0.76, 0.14, 0.62], [0, 0.53, 0.03], fabric);
+        addBox(group, [0.82, 0.43, 0.13], [0, 0.76, -0.34], fabric, true, true, [-0.15, 0, 0]);
+        addBox(group, [0.12, 0.38, 0.74], [-0.48, 0.58, 0.02], fabric);
+        addBox(group, [0.12, 0.38, 0.74], [0.48, 0.58, 0.02], fabric);
+        addPillow(group, 0, -0.23, preset.accent, 0);
+        createLegs(group, 0.82, 0.72, common.metal);
+      } else if (preset.type === 'cute') {
+        addBox(group, [1.58, 0.18, 0.72], [0, 0.32, 0.02], fabric);
+        addBox(group, [0.68, 0.16, 0.62], [-0.36, 0.5, 0.02], fabric);
+        addBox(group, [0.68, 0.16, 0.62], [0.36, 0.5, 0.02], fabric);
+        addBox(group, [1.52, 0.5, 0.16], [0, 0.73, -0.36], fabric, true, true, [-0.08, 0, 0]);
+        addBox(group, [0.17, 0.44, 0.75], [-0.86, 0.61, 0.02], fabric);
+        addBox(group, [0.17, 0.44, 0.75], [0.86, 0.61, 0.02], fabric);
+        addPillow(group, -0.32, -0.25, preset.accent, -0.08);
+        addPillow(group, 0.32, -0.25, 0xf7f0cf, 0.08);
+        createLegs(group, 1.5, 0.72, wood);
+      } else if (preset.type === 'lounge') {
+        addBox(group, [2.28, 0.18, 0.7], [0, 0.32, -0.1], fabric);
+        addBox(group, [0.85, 0.18, 1.28], [-0.55, 0.33, 0.26], fabric);
+        addBox(group, [1.1, 0.16, 0.62], [0.45, 0.51, -0.1], fabric);
+        addBox(group, [0.78, 0.16, 1.12], [-0.55, 0.51, 0.26], fabric);
+        addBox(group, [2.16, 0.48, 0.14], [0, 0.72, -0.47], fabric, true, true, [-0.1, 0, 0]);
+        addBox(group, [0.16, 0.45, 0.76], [1.22, 0.61, -0.1], fabric);
+        addPillow(group, 0.28, -0.36, preset.accent, 0.08);
+        addPillow(group, -0.72, -0.35, 0xffffff, -0.1);
+        createLegsAt(group, [[-1.02, -0.42], [-0.16, -0.42], [1.03, -0.42], [1.03, 0.18], [-0.92, 0.18], [-0.92, 0.78], [-0.16, 0.78]], dark);
+      } else {
+        addBox(group, [2.15, 0.18, 0.74], [0.12, 0.32, -0.25], fabric);
+        addBox(group, [0.78, 0.18, 1.75], [-0.58, 0.32, 0.25], fabric);
+        addBox(group, [0.62, 0.16, 0.64], [-0.55, 0.51, -0.25], fabric);
+        addBox(group, [0.62, 0.16, 0.64], [0.15, 0.51, -0.25], fabric);
+        addBox(group, [0.62, 0.16, 0.64], [0.85, 0.51, -0.25], fabric);
+        addBox(group, [0.62, 0.16, 0.72], [-0.58, 0.51, 0.52], fabric);
+        addBox(group, [2.2, 0.52, 0.16], [0.12, 0.73, -0.7], fabric, true, true, [-0.1, 0, 0]);
+        addBox(group, [0.16, 0.52, 1.78], [-1.05, 0.73, 0.18], fabric);
+        addPillow(group, 0.38, -0.58, preset.accent, 0.08);
+        addPillow(group, -0.75, -0.55, 0x737b89, -0.1);
+        createLegsAt(group, [[-0.9, -0.54], [-0.12, -0.54], [0.58, -0.54], [1.04, -0.54], [-0.92, 0.08], [-0.92, 0.92], [-0.42, 0.92]], common.metal);
+      }
+
+      group.traverse((child) => {
+        if (child.isMesh) child.userData.sofaRoot = group;
+      });
+      return group;
+    }
+
+    function selectSofa(sofa) {
+      selectedSofa = sofa;
+      sofaGroup.children.forEach((item) => setSelectedLook(item, item === sofa));
+      if (sofa) selectedPresetIndex = sofa.userData.presetIndex;
+      renderPresetCards();
+      updateMetrics();
+    }
+
+    function setSelectedLook(group, active) {
+      group.traverse((child) => {
+        if (!child.isMesh || child.userData.decorative) return;
+        if (!child.userData.baseEmissive) child.userData.baseEmissive = child.material.emissive?.clone?.() || new THREE.Color(0x000000);
+        if (child.material.emissive) child.material.emissive.set(active ? 0x1b2a62 : 0x000000);
+      });
+    }
+
+    function addSofa(presetIndex = selectedPresetIndex) {
+      const sofa = makeSofa(presetIndex);
+      sofa.position.set(0, 0, Math.min(0.65, roomDepth * 0.18));
+      sofa.rotation.y = 0;
+      sofaGroup.add(sofa);
+      clampSofaToRoom(sofa);
+      selectSofa(sofa);
+    }
+
+    function changeSelectedPreset(index) {
+      selectedPresetIndex = index;
+      if (!selectedSofa) {
+        addSofa(index);
+        return;
+      }
+      const old = selectedSofa;
+      const pos = old.position.clone();
+      const rot = old.rotation.y;
+      sofaGroup.remove(old);
+      disposeObject(old);
+      const next = makeSofa(index);
+      next.position.copy(pos);
+      next.rotation.y = rot;
+      sofaGroup.add(next);
+      clampSofaToRoom(next);
+      selectSofa(next);
+    }
+
+    function clampSofaToRoom(sofa) {
+      const box = new THREE.Box3().setFromObject(sofa);
+      const halfW = (box.max.x - box.min.x) / 2;
+      const halfD = (box.max.z - box.min.z) / 2;
+      sofa.position.x = THREE.MathUtils.clamp(sofa.position.x, -roomWidth / 2 + halfW + 0.08, roomWidth / 2 - halfW - 0.08);
+      sofa.position.z = THREE.MathUtils.clamp(sofa.position.z, -roomDepth / 2 + halfD + 0.08, roomDepth / 2 - halfD - 0.08);
+    }
+
+    function centerSelectedSofa() {
+      if (!selectedSofa) return;
+      selectedSofa.position.set(0, 0, 0.42);
+      clampSofaToRoom(selectedSofa);
+      updateMetrics();
+    }
+
+    function rotateSelectedSofa() {
+      if (!selectedSofa) return;
+      selectedSofa.rotation.y += Math.PI / 2;
+      clampSofaToRoom(selectedSofa);
+      updateMetrics();
+    }
+
+    function deleteSelectedSofa() {
+      if (!selectedSofa) return;
+      const sofa = selectedSofa;
+      sofaGroup.remove(sofa);
+      disposeObject(sofa);
+      selectedSofa = sofaGroup.children[0] || null;
+      selectSofa(selectedSofa);
+    }
+
+    function rebuildRoom() {
+      roomWidth = THREE.MathUtils.clamp(Number(roomWidthInput.value) || 5.2, 3, 12);
+      roomDepth = THREE.MathUtils.clamp(Number(roomDepthInput.value) || 4.2, 3, 10);
+      roomWidthInput.value = roomWidth.toFixed(1);
+      roomDepthInput.value = roomDepth.toFixed(1);
+      buildRoom();
+      sofaGroup.children.forEach(clampSofaToRoom);
+      camera.position.set(roomWidth * 0.78, Math.max(3, roomDepth * 0.75), roomDepth * 1.15);
+      controls.target.set(0, 0.8, 0);
+      controls.update();
+      updateMetrics();
+    }
+
+    function renderPresetCards() {
+      presetGrid.innerHTML = '';
+      presets.forEach((preset, index) => {
+        const card = document.createElement('div');
+        card.className = `preset-card ${index === selectedPresetIndex ? 'active' : ''}`;
+        card.innerHTML = `<div class="swatch" style="background:#${preset.color.toString(16).padStart(6, '0')}"></div><div><p class="preset-name">${preset.short}</p><p class="preset-meta">${preset.name}<br>${preset.seats}좌석 · ${preset.w.toFixed(1)} x ${preset.d.toFixed(1)}m</p></div>`;
+        card.addEventListener('click', () => changeSelectedPreset(index));
+        presetGrid.appendChild(card);
+      });
+    }
+
+    function updateMetrics() {
+      const roomArea = roomWidth * roomDepth;
+      const sofaArea = sofaGroup.children.reduce((sum, sofa) => sum + sofa.userData.area, 0);
+      const occupancy = Math.min(99, Math.round((sofaArea / roomArea) * 100));
+      const freeRatio = 1 - sofaArea / roomArea;
+      occupancyEl.textContent = `${occupancy}%`;
+      walkwayEl.className = '';
+      if (freeRatio > 0.65) {
+        walkwayEl.textContent = '충분';
+        walkwayEl.classList.add('status-good');
+      } else if (freeRatio > 0.45) {
+        walkwayEl.textContent = '보통';
+        walkwayEl.classList.add('status-warn');
+      } else {
+        walkwayEl.textContent = '좁음';
+        walkwayEl.classList.add('status-bad');
+      }
+
+      if (selectedSofa) {
+        const box = new THREE.Box3().setFromObject(selectedSofa);
+        const distances = [box.min.x + roomWidth / 2, roomWidth / 2 - box.max.x, box.min.z + roomDepth / 2, roomDepth / 2 - box.max.z];
+        clearanceEl.textContent = `${Math.max(0, Math.round(Math.min(...distances) * 100))} cm`;
+        selectedPresetEl.textContent = presets[selectedSofa.userData.presetIndex].short;
+      } else {
+        clearanceEl.textContent = '-';
+        selectedPresetEl.textContent = '-';
+      }
+    }
+
+    function setPointer(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const source = event.touches ? event.touches[0] : event;
+      pointer.x = ((source.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((source.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function pickSofa(event) {
+      setPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(sofaGroup.children, true);
+      return hits.length ? hits[0] : null;
+    }
+
+    function onPointerDown(event) {
+      const hit = pickSofa(event);
+      if (!hit) return;
+      event.preventDefault();
+      const sofa = hit.object.userData.sofaRoot;
+      selectSofa(sofa);
+      raycaster.ray.intersectPlane(floorPlane, dragPoint);
+      dragOffset.copy(sofa.position).sub(dragPoint);
+      isDragging = true;
+      controls.enabled = false;
+      viewer.classList.add('dragging');
+    }
+
+    function onPointerMove(event) {
+      if (!isDragging || !selectedSofa) return;
+      event.preventDefault();
+      setPointer(event);
+      raycaster.setFromCamera(pointer, camera);
+      if (raycaster.ray.intersectPlane(floorPlane, dragPoint)) {
+        selectedSofa.position.copy(dragPoint.add(dragOffset));
+        selectedSofa.position.y = 0;
+        clampSofaToRoom(selectedSofa);
+        updateMetrics();
+      }
+    }
+
+    function onPointerUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      controls.enabled = true;
+      viewer.classList.remove('dragging');
+    }
+
+    function addLights() {
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xb8a896, 1.15));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.95);
+      sun.position.set(-3.6, 5.6, 4.2);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.camera.left = -6;
+      sun.shadow.camera.right = 6;
+      sun.shadow.camera.top = 6;
+      sun.shadow.camera.bottom = -6;
+      scene.add(sun);
+    }
+
+    function resize() {
+      const rect = viewer.getBoundingClientRect();
+      camera.aspect = rect.width / rect.height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(rect.width, rect.height, false);
+    }
+
+    function animate() {
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    document.getElementById('rebuildRoom').addEventListener('click', rebuildRoom);
+    document.getElementById('rotateSofa').addEventListener('click', rotateSelectedSofa);
+    document.getElementById('addSofa').addEventListener('click', () => addSofa(selectedPresetIndex));
+    document.getElementById('centerSofa').addEventListener('click', centerSelectedSofa);
+    document.getElementById('deleteSofa').addEventListener('click', deleteSelectedSofa);
+    renderer.domElement.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove, { passive: false });
+    window.addEventListener('mouseup', onPointerUp);
+    renderer.domElement.addEventListener('touchstart', onPointerDown, { passive: false });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+    window.addEventListener('resize', resize);
+
+    renderPresetCards();
+    addLights();
+    buildRoom();
+    addSofa(selectedPresetIndex);
+    resize();
+    animate();
+  </script>
+</body>
+</html>
