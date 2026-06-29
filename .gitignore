@@ -6,5 +6,9 @@
 *.jpeg
 *.webp
 *.gif
+*.glb
+*.gltf
+*.fbx
+*.obj
 .DS_Store
 Thumbs.db
