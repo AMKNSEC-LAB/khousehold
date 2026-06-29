@@ -777,9 +777,9 @@
           if (mat.emissive) mat.emissive.set(0x000000);
           mat.emissiveIntensity = 0;
           if (preset.modelUrl === 'ORD4-LIGHT.glb') {
-            mat.roughness = THREE.MathUtils.clamp(mat.roughness ?? 0.58, 0.46, 0.68);
-            mat.metalness = Math.min(mat.metalness ?? 0.02, 0.04);
-            if (mat.color) mat.color.multiplyScalar(0.9);
+            mat.roughness = THREE.MathUtils.clamp(mat.roughness ?? 0.42, 0.34, 0.56);
+            mat.metalness = Math.min(mat.metalness ?? 0.03, 0.05);
+            if (mat.color) mat.color.multiplyScalar(1.12);
           } else {
             mat.roughness = Math.max(mat.roughness ?? 0.65, 0.72);
             mat.metalness = Math.min(mat.metalness ?? 0, 0.08);
